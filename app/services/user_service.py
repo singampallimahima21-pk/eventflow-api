@@ -1,12 +1,10 @@
-import logging
 from app.db.database import SessionLocal
 from app.models.user_model import User
-
-logging.basicConfig(level=logging.INFO)
+from app.core.logger import logger
 
 
 def process_user_data(data: dict):
-    logging.info("Starting user data processing")
+    logger.info("Starting user data processing")
 
     errors = []
 
@@ -37,7 +35,7 @@ def process_user_data(data: dict):
 
     #If validation fails → return errors
     if errors:
-        logging.warning(f"Validation failed: {errors}")
+        logger.warning(f"Validation failed: {errors}")
         return {
             "status": "failed",
             "error_count": len(errors),
@@ -46,13 +44,33 @@ def process_user_data(data: dict):
         }
 
     #SAVE TO DB
-    user_id = save_user_to_db({
-        "name": name,
-        "email": email,
-        "age": age
-    })
+    try:
+        user_id = save_user_to_db({
+            "name": name,
+            "email": email,
+            "age": age
+        })
+    except ValueError as e:
+        # Handle duplicate email specifically
+        error_msg = str(e)
+        logger.warning(f"User creation failed: {error_msg}")
+        return {
+            "status": "failed",
+            "error_count": 1,
+            "errors": [error_msg],
+            "input": data
+        }
+    except Exception as e:
+        # Handle other database errors
+        logger.exception(f"Unexpected DB error: {str(e)}")
+        return {
+            "status": "failed",
+            "error_count": 1,
+            "errors": ["Database error occurred"],
+            "input": data
+        }
 
-    logging.info(f"User saved with ID: {user_id}")
+    logger.info(f"User saved with ID: {user_id}")
 
     #Success response
     return {
@@ -70,6 +88,12 @@ def save_user_to_db(data: dict):
     db = SessionLocal()
 
     try:
+        # Check if email already exists
+        existing_user = db.query(User).filter(User.email == data["email"]).first()
+        if existing_user:
+            logger.warning(f"Duplicate email detected: {data['email']}")
+            raise ValueError(f"Email already exists: {data['email']}")
+
         user = User(
             name=data["name"],
             email=data["email"],
@@ -84,7 +108,7 @@ def save_user_to_db(data: dict):
 
     except Exception as e:
         db.rollback()
-        logging.error(f"DB Error: {str(e)}")
+        logger.exception(f"DB Error: {str(e)}")
         raise
 
     finally:
@@ -98,6 +122,9 @@ def get_all_users():
         users = db.query(User).all()
         return users
 
+    except Exception as e:
+        logger.exception(f"Error fetching all users: {str(e)}")
+        raise
     finally:
         db.close()
         
@@ -140,5 +167,8 @@ def get_users_paginated(
 
         return users, total
 
+    except Exception as e:
+        logger.exception(f"Error fetching paginated users: {str(e)}")
+        raise
     finally:
         db.close()

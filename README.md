@@ -1,61 +1,150 @@
 # eventflow-api
 
-A backend API for ingesting, validating, processing, and persisting user event data. Built with FastAPI, SQLAlchemy, and JWT authentication, this service exposes endpoints for user login, single record processing, batch processing, and paginated user retrieval.
+A production-ready backend API for user authentication and data management. Built with FastAPI, SQLAlchemy, JWT authentication, comprehensive logging, and exception handling.
 
-## Features
-
-- User login endpoint that issues a JWT access token
-- Request validation with Pydantic models
-- User data processing pipeline with normalization and validation
-- SQLite-backed persistence via SQLAlchemy ORM
-- Paginated user retrieval with optional filtering, search, and sorting
-- Protected user listing endpoint using bearer token authentication
-
-## Tech stack
-
-- Python
-- FastAPI
-- SQLAlchemy
-- Pydantic
-- python-jose (JWT)
-- SQLite (default local database)
-
-## Quick start
+## Quick Start
 
 1. Create and activate a virtual environment
-
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
 2. Install dependencies
-
 ```powershell
-pip install fastapi uvicorn sqlalchemy python-jose
+pip install -r requirements.txt
 ```
 
-3. Run the app
-
+3. Run the server
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-4. Open the API docs
+The API will be available at `http://127.0.0.1:8000`
 
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
+---
 
-## API endpoints
+## Testing
 
-### Health check
+Run all tests with pytest:
+```powershell
+pytest tests/ -v
+```
+
+Tests are located in the root-level `tests/` directory and include:
+- User signup tests
+- Duplicate email prevention tests
+- User login tests
+- Database cleanup between tests for reliable, isolated test execution
+
+---
+
+## API Endpoints
+
+### 1. Sign Up
+
+**URL:** `POST http://127.0.0.1:8000/api/signup`
+
+**Request Body:**
+```json
+{
+  "name": "Shivani",
+  "email": "shivani@gmail.com",
+  "password": "1234"
+}
+```
+
+**Response (Success):**
+```json
+{
+  "message": "User created successfully",
+  "user_id": 1
+}
+```
+
+**Response (Duplicate Email):**
+```json
+{
+  "status": "error",
+  "message": "Email already registered",
+  "path": "/api/signup"
+}
+```
+
+---
+
+### 2. Login
+
+**URL:** `POST http://127.0.0.1:8000/api/login`
+
+**Request Body:**
+```json
+{
+  "email": "shivani@gmail.com",
+  "password": "1234"
+}
+```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}
+```
+
+---
+
+## Features
+
+- ✅ User signup with password hashing (pbkdf2_sha256)
+- ✅ User login with JWT token generation
+- ✅ Email validation and duplicate email prevention
+- ✅ SQLite database persistence with automatic schema management
+- ✅ CSV batch upload and data processing
+- ✅ Paginated user retrieval with filtering and sorting
+- ✅ Production-style centralized logging with file and console output
+- ✅ Global exception handling with consistent error responses
+- ✅ Comprehensive request/response logging for debugging
+- ✅ Nullable password field for batch processing workflows
+
+## API Documentation
+
+- **Swagger UI:** `http://127.0.0.1:8000/docs`
+- **ReDoc:** `http://127.0.0.1:8000/redoc`
+
+## API Endpoints
+
+### Health Check
 
 - `GET /`
 - Returns a basic status message.
 
+### Signup
+
+- `POST /api/signup`
+- Request body:
+  ```json
+  {
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "age": 30,
+    "password": "securepassword"
+  }
+  ```
+- Creates a new user account with hashed password.
+- Returns 400 if email already exists.
+
 ### Login
 
 - `POST /api/login`
+- Request body:
+  ```json
+  {
+    "email": "jane@example.com",
+    "password": "securepassword"
+  }
+  ```
 - Returns an access token for bearer authentication.
 - Example response:
   ```json
@@ -65,7 +154,7 @@ uvicorn app.main:app --reload
   }
   ```
 
-### Process single user record
+### Process Single User Record
 
 - `POST /api/process-data`
 - Request body:
@@ -77,8 +166,9 @@ uvicorn app.main:app --reload
   }
   ```
 - Validates, normalizes, and saves the user record.
+- Returns error details if email already exists or validation fails.
 
-### Process batch user records
+### Process Batch User Records
 
 - `POST /api/process-batch`
 - Request body:
@@ -92,7 +182,14 @@ uvicorn app.main:app --reload
   ```
 - Processes multiple records in a single request.
 
-### Get users
+### Upload CSV
+
+- `POST /api/upload-csv`
+- Uploads a CSV file for batch processing.
+- CSV should have columns: name, email, age
+- Processes each row and saves valid records.
+
+### Get Users
 
 - `GET /api/users`
 - Protected endpoint requiring bearer token from `/api/login`
@@ -104,18 +201,81 @@ uvicorn app.main:app --reload
   - `sort_by`: column to sort by (e.g. `name`, `age`)
   - `order`: `asc` or `desc`
 
-## Project structure
+## Project Structure
 
-- `app/main.py` — app entrypoint and route registration
-- `app/core/auth.py` — JWT creation and token verification
-- `app/db/database.py` — SQLAlchemy engine and session setup
-- `app/models/user_model.py` — database model for user records
-- `app/routes/user_routes.py` — user-related API routes
-- `app/schemas/user_schema.py` — request payload validators
-- `app/services/user_service.py` — business logic, validation, and database operations
+```
+app/
+  main.py                 — FastAPI app entry point and route registration
+  core/
+    auth.py               — JWT token creation and verification
+    exceptions.py         — Global exception handlers for consistent error responses
+    logger.py             — Centralized logging configuration
+    security.py           — Password hashing and verification
+  db/
+    database.py           — SQLAlchemy engine, session setup, and schema management
+  models/
+    user_model.py         — SQLAlchemy ORM model for user records
+  routes/
+    user_routes.py        — User-related API endpoints with comprehensive logging
+  schemas/
+    user_schema.py        — Pydantic request/response validators
+  services/
+    user_service.py       — Business logic, validation, and database operations
+
+tests/
+  conftest.py             — Pytest fixtures for test client and database cleanup
+  test_users.py           — User signup, login, and duplicate email tests
+  test_auth.py            — Authentication-related tests (placeholder)
+
+logs/
+  app.log                 — Application logs with timestamp, level, module, and line numbers
+```
+
+## Logging
+
+The application uses centralized logging configured in `app/core/logger.py`:
+
+- **Log Level:** INFO (captures all INFO, WARNING, ERROR, and CRITICAL messages)
+- **Format:** `%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s`
+- **Output:** 
+  - Console: Colored output for quick debugging
+  - File: `logs/app.log` for persistent record-keeping
+- **Coverage:** All endpoints, business logic, database operations, and error conditions
+
+Example log entry:
+```
+2026-05-14 12:25:41,718 - INFO - user_routes.py:205 - [request-id] Incoming request: name='Jane Doe' email='jane@example.com' age=30
+```
+
+## Exception Handling
+
+Global exception handlers (`app/core/exceptions.py`) ensure consistent error responses:
+
+- **HTTPException:** Returns status code, message, and request path
+- **Generic Exceptions:** Logged with full traceback for debugging
+- **Response Format:**
+  ```json
+  {
+    "status": "error",
+    "message": "Descriptive error message",
+    "path": "/api/endpoint"
+  }
+  ```
+
+## Database
+
+- **Engine:** SQLite (`users.db`)
+- **ORM:** SQLAlchemy
+- **Features:**
+  - Automatic schema creation on startup
+  - Nullable password field for batch processing workflows
+  - Duplicate email cleanup on initialization
+  - Automatic UNIQUE index on email field
 
 ## Notes
 
 - The default database file is `users.db` in the project root.
 - `/api/users` is protected by JWT authentication.
-- The current login endpoint issues a static dummy user token and can be extended to validate real users.
+- All endpoints include comprehensive logging for production debugging.
+- Duplicate email detection prevents data integrity issues.
+- Batch processing supports users without passwords for flexible data workflows.
